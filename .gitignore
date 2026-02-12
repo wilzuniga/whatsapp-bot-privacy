@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Compiled output
+functions/lib/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+
+# Environment
+.env
+.env.local
+functions/.env
+
+# Service account keys
+*-service-account.json
+credentials.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

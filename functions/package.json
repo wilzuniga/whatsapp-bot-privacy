@@ -1,0 +1,30 @@
+{
+  "name": "whatsapp-bot-functions",
+  "version": "1.0.0",
+  "description": "WhatsApp Bot using Firebase Functions",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc && npm run copy-docs",
+    "copy-docs": "node -e \"const fs=require('fs');const path=require('path');const src='src/documents';const dest='lib/documents';if(!fs.existsSync(dest))fs.mkdirSync(dest,{recursive:true});fs.readdirSync(src).forEach(f=>fs.copyFileSync(path.join(src,f),path.join(dest,f)));\"",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.1",
+    "firebase-functions": "^7.0.5",
+    "googleapis": "^140.0.0",
+    "openai": "^4.52.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  },
+  "private": true
+}
