@@ -29,40 +29,105 @@ function getSheetsClient() {
 }
 
 /**
- * Parses a currency value like "L 200,00" or "L 10.900,00" or "-L 100,00"
- * Returns the numeric value
+ * Parses currency values in multiple formats:
+ * - "L 200,00" or "L200.00" (with or without space)
+ * - "L 11,300.00" or "L11.300,00" (thousands with comma or dot)
+ * - "-L100.00" or "-L 4,000.00" (negative values)
+ * - "L-" or "L -" (zero)
+ * - "-L4,000.00" (negative with thousands)
+ * 
+ * Handles both formats:
+ * - US: comma for thousands, dot for decimal (L11,300.00)
+ * - EU: dot for thousands, comma for decimal (L11.300,00)
  */
 function parseCurrency(value: string | undefined | null): number {
-  if (!value || value.trim() === '' || value.trim() === '-' || value.trim() === 'L -') {
+  if (!value) {
+    return 0;
+  }
+  
+  const trimmed = value.trim();
+  
+  // Handle empty, dash only, or "L-" / "L -" cases
+  if (trimmed === '' || trimmed === '-' || trimmed === 'L-' || trimmed === 'L -' || trimmed === 'L' || trimmed === '-L') {
     return 0;
   }
   
   // Check for "Sin pagos" text
-  if (value.toLowerCase().includes('sin pagos')) {
+  if (trimmed.toLowerCase().includes('sin pagos')) {
     return 0;
   }
   
-  // Handle negative values like "-L 100,00"
-  const isNegative = value.includes('-L') || value.startsWith('-');
+  // Detect if negative: starts with - or has -L
+  const isNegative = trimmed.startsWith('-') || trimmed.includes('-L');
   
-  // Remove "L", spaces, and handle decimal separators
-  // Format is: L 10.900,00 (dots for thousands, comma for decimals)
-  let cleaned = value
-    .replace(/L/g, '')
-    .replace(/\s/g, '')
-    .replace(/-/g, '');
+  // Remove "L", spaces, and minus signs to get just the number
+  let cleaned = trimmed
+    .replace(/L/gi, '')  // Remove L (case insensitive)
+    .replace(/\s/g, '')   // Remove spaces
+    .replace(/-/g, '');   // Remove minus signs (we already tracked negativity)
   
-  // Remove thousand separators (dots) and replace decimal comma with dot
-  // "10.900,00" -> "10900.00"
-  cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-  
-  const parsed = parseFloat(cleaned);
-  
-  if (isNaN(parsed)) {
+  // If nothing left after cleaning, return 0
+  if (!cleaned || cleaned === '') {
     return 0;
   }
   
-  return isNegative ? -parsed : parsed;
+  // Detect format by analyzing the pattern
+  // US format: "11,300.00" - comma before dot, or only commas for thousands
+  // EU format: "11.300,00" - dot before comma, or only dots for thousands
+  
+  const lastComma = cleaned.lastIndexOf(',');
+  const lastDot = cleaned.lastIndexOf('.');
+  
+  if (lastComma === -1 && lastDot === -1) {
+    // No separators, just a number like "100" or "4000"
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : (isNegative ? -parsed : parsed);
+  }
+  
+  if (lastComma === -1 && lastDot !== -1) {
+    // Only dots: could be "11.300" (EU thousands) or "100.00" (US decimal)
+    // If dot is in last 3 positions and has 1-2 digits after, treat as decimal
+    const digitsAfterDot = cleaned.length - lastDot - 1;
+    if (digitsAfterDot <= 2) {
+      // Treat as decimal: "100.00" -> 100.00
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : (isNegative ? -parsed : parsed);
+    } else {
+      // Treat as thousands separator: "11.300" -> 11300
+      cleaned = cleaned.replace(/\./g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : (isNegative ? -parsed : parsed);
+    }
+  }
+  
+  if (lastDot === -1 && lastComma !== -1) {
+    // Only commas: could be "11,300" (US thousands) or "100,00" (EU decimal)
+    const digitsAfterComma = cleaned.length - lastComma - 1;
+    if (digitsAfterComma <= 2) {
+      // Treat as decimal: "100,00" -> 100.00
+      cleaned = cleaned.replace(',', '.');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : (isNegative ? -parsed : parsed);
+    } else {
+      // Treat as thousands separator: "11,300" -> 11300
+      cleaned = cleaned.replace(/,/g, '');
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? 0 : (isNegative ? -parsed : parsed);
+    }
+  }
+  
+  // Both comma and dot present
+  if (lastDot > lastComma) {
+    // US format: "11,300.00" - comma is thousands, dot is decimal
+    cleaned = cleaned.replace(/,/g, ''); // Remove thousand separators
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : (isNegative ? -parsed : parsed);
+  } else {
+    // EU format: "11.300,00" - dot is thousands, comma is decimal
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : (isNegative ? -parsed : parsed);
+  }
 }
 
 /**

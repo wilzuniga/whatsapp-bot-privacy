@@ -12,6 +12,7 @@ firebase-debug.*.log
 # Environment
 .env
 .env.local
+.env.example
 functions/.env
 
 # Service account keys

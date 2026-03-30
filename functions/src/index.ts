@@ -1,6 +1,13 @@
 import { onRequest } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { handleMessage } from './handlers/message';
 import { parseWebhookPayload, verifyWebhook } from './services/whatsapp';
+import {
+  sendMonthlyReminders,
+  sendTestReminder,
+  isPenultimateDayOfMonthHonduras,
+  hondurasDateLabel,
+} from './services/scheduler';
 import { WhatsAppWebhookPayload } from './types';
 
 // Simple deduplication: track processed message IDs (in-memory, resets on cold start)
@@ -80,5 +87,86 @@ export const webhook = onRequest(
 
     // Other methods not allowed
     res.status(405).send('Method Not Allowed');
+  }
+);
+
+/**
+ * Recordatorios: penultimo dia del mes a las 18:00 America/Tegucigalpa.
+ * El cron corre cada dia a las 18:00; solo envia si es penultimo dia en Honduras.
+ */
+export const monthlyReminders = onSchedule(
+  {
+    schedule: '0 18 * * *',
+    timeZone: 'America/Tegucigalpa',
+    region: 'us-central1',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
+  async () => {
+    console.log('[monthlyReminders] tick honduras_time=' + hondurasDateLabel());
+
+    if (!isPenultimateDayOfMonthHonduras()) {
+      console.log('[monthlyReminders] skip not_penultimate_day honduras_time=' + hondurasDateLabel());
+      return;
+    }
+
+    console.log('[monthlyReminders] run penultimate_day honduras_time=' + hondurasDateLabel());
+
+    try {
+      const results = await sendMonthlyReminders();
+      console.log(
+        '[monthlyReminders] finished ' +
+          JSON.stringify({
+            sent: results.sent,
+            failed: results.failed,
+            skipped: results.skipped,
+            total: results.total,
+          })
+      );
+    } catch (error) {
+      console.error('[monthlyReminders] fatal', error);
+      throw error;
+    }
+  }
+);
+
+/**
+ * HTTP endpoint to manually trigger reminders (for testing or manual runs)
+ * 
+ * GET /sendReminders - Send to all residents
+ * GET /sendReminders?test=50499999999 - Send test to specific number
+ */
+export const sendReminders = onRequest(
+  {
+    region: 'us-central1',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
+  async (req, res) => {
+    // Simple auth check - require a secret header
+    const authHeader = req.headers['x-admin-key'];
+    if (authHeader !== 'PatronatoAdmin2026') {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const testPhone = req.query['test'] as string | undefined;
+
+    try {
+      if (testPhone) {
+        // Send test to single number
+        console.log(`Sending test reminder to ${testPhone}`);
+        const result = await sendTestReminder(testPhone);
+        res.json(result);
+      } else {
+        // Send to all residents
+        console.log('Sending reminders to all residents');
+        const results = await sendMonthlyReminders();
+        res.json(results);
+      }
+    } catch (error) {
+      console.error('Error sending reminders:', error);
+      res.status(500).json({ error: String(error) });
+    }
   }
 );

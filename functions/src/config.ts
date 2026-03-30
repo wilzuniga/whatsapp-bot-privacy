@@ -15,4 +15,8 @@ export const config = {
   whatsappToken: process.env.WHATSAPP_TOKEN || '',
   whatsappPhoneId: process.env.WHATSAPP_PHONE_ID || '',
   whatsappVerifyToken: process.env.WHATSAPP_VERIFY_TOKEN || '',
+  /** Message template for proactive reminders (must match Meta exactly) */
+  whatsappTemplateName: process.env.WHATSAPP_TEMPLATE_NAME || 'recordatorio_de_pagos_nueva_tatumbla',
+  /** Locale code as in Meta (e.g. es, es_HN, es_MX) */
+  whatsappTemplateLang: process.env.WHATSAPP_TEMPLATE_LANG || 'es',
 };
