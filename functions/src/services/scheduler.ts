@@ -115,13 +115,13 @@ async function sendTemplateMessage(
     const data = await response.json();
 
     if (!response.ok) {
-      console.error(`[monthlyReminders] template API error to=${to}`, JSON.stringify(data));
+      console.error('[reminder]', to, 'fallo_api');
       return { success: false, error: JSON.stringify(data.error || data) };
     }
 
     return { success: true };
   } catch (error) {
-    console.error(`[monthlyReminders] exception to=${to}`, error);
+    console.error('[reminder]', to, 'fallo_excepcion', error);
     return { success: false, error: String(error) };
   }
 }
@@ -137,8 +137,8 @@ export async function sendMonthlyReminders(): Promise<{
   skipped: number;
   details: Array<{ phone: string; status: string; error?: string }>;
 }> {
-  console.log('[monthlyReminders] Starting batch, honduras_time=' + hondurasDateLabel());
-  
+  console.log('[reminder] inicio lote honduras_time=' + hondurasDateLabel());
+
   const results = {
     total: 0,
     sent: 0,
@@ -152,14 +152,14 @@ export async function sendMonthlyReminders(): Promise<{
     const records = await getSheetData();
     results.total = records.length;
     
-    console.log(`[monthlyReminders] Sheet rows=${records.length}`);
+    console.log('[reminder] filas_sheet=' + records.length);
 
     for (const record of records) {
       // Skip records without a valid phone number
       const phone = record.telefono.replace(/\D/g, '');
       
       if (!phone || phone.length < 8) {
-        console.log(`[monthlyReminders] skip no_phone name="${record.nombre} ${record.apellido}"`);
+        console.log('[reminder]', record.telefono || 'sin_numero', 'omitido');
         results.skipped++;
         results.details.push({ 
           phone: record.telefono || 'N/A', 
@@ -182,8 +182,6 @@ export async function sendMonthlyReminders(): Promise<{
         ultimoPago,         // {{4}} - Último pago
       ];
 
-      console.log(`[monthlyReminders] send to=${phone} name="${fullName}"`);
-
       // Send the template message
       const result = await sendTemplateMessage(
         phone,
@@ -193,11 +191,11 @@ export async function sendMonthlyReminders(): Promise<{
       );
 
       if (result.success) {
-        console.log(`[monthlyReminders] ok to=${phone}`);
+        console.log('[reminder]', phone, 'enviado');
         results.sent++;
         results.details.push({ phone, status: 'sent' });
       } else {
-        console.error(`[monthlyReminders] fail to=${phone} err=${result.error}`);
+        console.log('[reminder]', phone, 'no_enviado');
         results.failed++;
         results.details.push({ phone, status: 'failed', error: result.error });
       }
@@ -207,19 +205,18 @@ export async function sendMonthlyReminders(): Promise<{
     }
 
     console.log(
-      '[monthlyReminders] done ' +
-        JSON.stringify({
-          sent: results.sent,
-          failed: results.failed,
-          skipped: results.skipped,
-          total: results.total,
-          honduras_time: hondurasDateLabel(),
-        })
+      '[reminder] fin lote enviados=' +
+        results.sent +
+        ' no_enviados=' +
+        results.failed +
+        ' omitidos=' +
+        results.skipped +
+        ' honduras_time=' +
+        hondurasDateLabel()
     );
-    console.log('[monthlyReminders] details_json=' + JSON.stringify(results.details));
-    
+
   } catch (error) {
-    console.error('[monthlyReminders] Error in sendMonthlyReminders:', error);
+    console.error('[reminder] error_lote', error);
     throw error;
   }
 
@@ -259,10 +256,12 @@ export async function sendTestReminder(testPhone: string): Promise<{
   );
 
   if (result.success) {
+    console.log('[reminder]', digits, 'enviado');
     return {
       success: true,
-      message: `Enviado a ${digits} con datos de: ${fullName} (cuota L ${cuotaMensual}, saldo L ${saldoActual})`,
+      message: `Enviado a ${digits} (${fullName}). Estado: enviado.`,
     };
   }
-  return { success: false, message: `Failed to send: ${result.error}` };
+  console.log('[reminder]', digits, 'no_enviado');
+  return { success: false, message: `No enviado: ${result.error}` };
 }

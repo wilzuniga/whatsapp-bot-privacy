@@ -103,28 +103,27 @@ export const monthlyReminders = onSchedule(
     memory: '512MiB',
   },
   async () => {
-    console.log('[monthlyReminders] tick honduras_time=' + hondurasDateLabel());
+    console.log('[reminder] cron tick honduras_time=' + hondurasDateLabel());
 
     if (!isPenultimateDayOfMonthHonduras()) {
-      console.log('[monthlyReminders] skip not_penultimate_day honduras_time=' + hondurasDateLabel());
+      console.log('[reminder] cron sin_envio no_es_penultimo_dia');
       return;
     }
 
-    console.log('[monthlyReminders] run penultimate_day honduras_time=' + hondurasDateLabel());
+    console.log('[reminder] cron ejecutando penultimo_dia');
 
     try {
       const results = await sendMonthlyReminders();
       console.log(
-        '[monthlyReminders] finished ' +
-          JSON.stringify({
-            sent: results.sent,
-            failed: results.failed,
-            skipped: results.skipped,
-            total: results.total,
-          })
+        '[reminder] cron resumen enviados=' +
+          results.sent +
+          ' no_enviados=' +
+          results.failed +
+          ' omitidos=' +
+          results.skipped
       );
     } catch (error) {
-      console.error('[monthlyReminders] fatal', error);
+      console.error('[reminder] cron error', error);
       throw error;
     }
   }
@@ -155,14 +154,19 @@ export const sendReminders = onRequest(
     try {
       if (testPhone) {
         // Send test to single number
-        console.log(`Sending test reminder to ${testPhone}`);
+        console.log('[reminder] test a numero=' + testPhone);
         const result = await sendTestReminder(testPhone);
         res.json(result);
       } else {
-        // Send to all residents
-        console.log('Sending reminders to all residents');
+        console.log('[reminder] manual envio_masivo');
         const results = await sendMonthlyReminders();
-        res.json(results);
+        res.json({
+          sent: results.sent,
+          failed: results.failed,
+          skipped: results.skipped,
+          total: results.total,
+          details: results.details.map(d => ({ phone: d.phone, status: d.status })),
+        });
       }
     } catch (error) {
       console.error('Error sending reminders:', error);
